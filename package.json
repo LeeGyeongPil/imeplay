@@ -1,0 +1,60 @@
+{
+  "name": "imeplay",
+  "version": "0.1.0",
+  "description": "Reproduce IME composition (Korean, CJK) in Playwright tests and catch 'Enter sends twice / last character sent again' bugs in chat inputs.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "playwright",
+    "ime",
+    "composition",
+    "korean",
+    "hangul",
+    "cjk",
+    "e2e",
+    "testing",
+    "chat",
+    "isComposing"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "imeplay": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "fixtures",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && npm run typecheck && playwright test",
+    "demo": "npm run build --silent && node dist/cli.js demo",
+    "prepare": "npm run build"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.65.0 <2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@types/node": "26.6.6",
+    "playwright": "1.65.0",
+    "typescript": "6.0.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
