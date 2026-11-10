@@ -1,0 +1,33 @@
+# 키·외부 서비스 없이 연습용 목(mock) 채팅 화면으로 전체 흐름을 검증한다.
+# Node 22·24 × Chromium·Firefox·WebKit. (CLI 테스트는 Chromium 을 쓰므로 항상 함께 설치한다)
+name: ci
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"   # 매주 월요일 — 브라우저·런타임이 바뀌어 깨지지 않았는지 정기 확인
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        browser: [chromium, firefox, webkit]
+    name: node ${{ matrix.node }} · ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      # 브라우저 다운로드가 미러에서 끊길 때가 있어 한 번 더 시도한다
+      - name: install browsers
+        run: npx playwright install --with-deps chromium ${{ matrix.browser }} || npx playwright install --with-deps chromium ${{ matrix.browser }}
+      - run: npm test
+        env:
+          IMEPLAY_BROWSERS: ${{ matrix.browser }}
+      - run: npm run demo
+      - run: npm pack --dry-run
