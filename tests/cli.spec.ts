@@ -172,6 +172,67 @@ test('--browser 가 잘못되면 서버를 띄우기 전에 종료코드 2 로 �
   expect(r.stderr).not.toContain('fixture server');
 });
 
+// ---------------------------------------------------------------- --steps FILE
+const FIX = (name: string) => join(ROOT, 'tests', 'fixtures', name);
+
+test.describe('check --steps', () => {
+  test('일본어 단계 파일 + composing-only: safari FAIL · firefox PASS, 종료코드 1, JSON 에 text·steps', async () => {
+    const file = FIX('steps-ja.json');
+    const run = await runCli(['check', 'fixture:composing-only', '--steps', file, '--profiles', 'safari,firefox', '--json']);
+    expect(run.code, run.stderr).toBe(1);
+    const json = JSON.parse(run.stdout);
+    const byProfile = Object.fromEntries(json.reports.map((r: { profile: string; verdict: string }) => [r.profile, r.verdict]));
+    expect(byProfile).toEqual({ safari: 'SUBMIT_ON_IME_ENTER', firefox: 'PASS' });
+    expect(json.text).toBe('日本');
+    expect(json.steps).toBe(file);
+  });
+
+  test('사람용 출력: text 는 finalText, 뒤에 (steps FILE, N steps)', async () => {
+    const file = FIX('steps-ja.json');
+    const run = await runCli(['check', 'fixture:fixed', '--steps', file, '--profiles', 'firefox']);
+    expect(run.code, run.stderr).toBe(0);
+    expect(run.stdout).toContain(`text '日本' (steps ${file}, 4 steps)`);
+  });
+
+  test('fixture:fixed + 단계 파일: 모든 프로필 PASS, 종료코드 0', async () => {
+    const run = await runCli(['check', 'fixture:fixed', '--steps', FIX('steps-ja.json')]);
+    expect(run.code, run.stderr).toBe(0);
+    expect(run.stdout).toContain('result: all 4 profile(s) PASS');
+  });
+
+  test('미사용 시 JSON 에 steps 필드가 없다(출력 불변)', async () => {
+    const run = await runCli(['check', 'fixture:fixed', '--profiles', 'firefox', '--json']);
+    expect(run.code, run.stderr).toBe(0);
+    expect('steps' in JSON.parse(run.stdout)).toBe(false);
+    expect(run.stdout).not.toContain('(steps ');
+  });
+
+  const rejected: Array<[string, string[], string]> = [
+    ['없는 파일', ['check', 'fixture:fixed', '--steps', '/nonexistent/steps.json'], '--steps: cannot read /nonexistent/steps.json (ENOENT)'],
+    ['잘못된 JSON', ['check', 'fixture:fixed', '--steps', FIX('steps-not-json.txt')], 'is not valid JSON ('],
+    ['배열 아님', ['check', 'fixture:fixed', '--steps', FIX('steps-object.json')], 'steps must be a non-empty array'],
+    ['스키마 위반(commit 이 compose 앞)', ['check', 'fixture:fixed', '--steps', FIX('steps-bad-commit.json')], 'steps[0]: commit without an active composition'],
+    ['확정으로 끝남', ['check', 'fixture:fixed', '--steps', FIX('steps-ends-committed.json')], 'the last step must be a compose step so Enter can be pressed during composition'],
+    ['--text 와 동시 지정', ['check', 'fixture:fixed', '--steps', FIX('steps-ja.json'), '--text', '안녕'], '--steps and --text cannot be used together'],
+    ['demo 에 --steps', ['demo', '--steps', FIX('steps-ja.json')], '--steps is only for check'],
+  ];
+  for (const [name, args, message] of rejected) {
+    test(`${name}: 종료코드 2, 한 줄 오류, 브라우저 시작 전에 끝남`, async () => {
+      const run = await runCli(args);
+      expect(run.code).toBe(2);
+      expect(run.stderr).toContain(message);
+      expect(run.stderr).not.toContain('fixture server');
+      expect(run.stderr).not.toContain('Usage'); // HELP 를 붙이지 않는다
+      expect(run.stderr.trim().split('\n')).toHaveLength(1);
+    });
+  }
+
+  test('--help 에 --steps 가 있다', async () => {
+    const help = await runCli(['--help']);
+    expect(help.stdout).toContain('--steps FILE');
+  });
+});
+
 test('브라우저를 시작하지 못하면 고치는 방법(IMEPLAY_CHROMIUM_ARGS·playwright install)을 알려 준다', async () => {
   test.setTimeout(60_000);
   const r = await runCli(['check', 'fixture:buggy'], { PLAYWRIGHT_BROWSERS_PATH: join(tmpdir(), 'imeplay-no-browsers-here') });
