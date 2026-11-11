@@ -1,6 +1,6 @@
 # imeplay
 
-> **English summary** — imeplay reproduces Korean IME composition inside Playwright tests, so you can catch chat inputs that send twice or re-send the last character when the user presses Enter to confirm a syllable. Use it as a library in your own Playwright tests or as a CLI (`imeplay check <url>`). Quick start: `npm install && npx playwright install chromium && npm run demo`. Not published to npm yet; install from GitHub. Chromium is verified locally; Firefox and WebKit run in the CI matrix.
+> **English summary** — imeplay reproduces Korean IME composition inside Playwright tests, so you can catch chat inputs that send twice or re-send the last character when the user presses Enter to confirm a syllable. Use it as a library in your own Playwright tests or as a CLI (`imeplay check <url>`; `--steps FILE` also checks non-Korean compositions such as Japanese or Chinese from a JSON step file). Quick start: `npm install && npx playwright install chromium && npm run demo`. Not published to npm yet; install from GitHub. Chromium is verified locally; Firefox and WebKit run in the CI matrix.
 
 한국어로 "안녕"을 치고 Enter 를 눌렀는데 채팅창에서 "안녕" 과 "녕" 이 두 번 전송되는 버그를, 자동화 테스트에서 재현하고 잡아 줍니다.
 
@@ -29,7 +29,7 @@ npm install -D github:LeeGyeongPil/imeplay @playwright/test@1.65.0
 npx playwright install chromium
 ```
 - 설치 때 `prepare` 가 TypeScript 를 빌드합니다. npm 11 은 `install-scripts` 경고를 띄울 수 있고, 정상입니다.
-- clone 해서 쓰려면: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. 다른 프로젝트에 넣을 때는 `npm pack` 으로 만든 `imeplay-0.1.0.tgz` 를 `npm install -D ./imeplay-0.1.0.tgz @playwright/test@1.65.0` 합니다.
+- clone 해서 쓰려면: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. 다른 프로젝트에 넣을 때는 `npm pack` 으로 만든 `imeplay-0.2.0.tgz` 를 `npm install -D ./imeplay-0.2.0.tgz @playwright/test@1.65.0` 합니다.
 - 최소 리눅스(컨테이너)에서 브라우저가 떠야 한다면 `npx playwright install --with-deps chromium` 을 씁니다.
 - `playwright` 는 peer 의존성(`>=1.65.0 <2`)입니다. 위 설치 줄의 `@playwright/test` 가 `playwright` 를 함께 끌어오므로 따로 설치하지 않아도 됩니다. 테스트 러너 없이 CLI 와 `checkIme` 만 쓴다면 `@playwright/test` 대신 `playwright@1.65.0` 만 설치해도 됩니다.
 - ESM·CommonJS 프로젝트 모두 `import { checkIme } from 'imeplay'` 또는 `require('imeplay')` 로 불러옵니다(Node 22.12+, `require` 는 ESM 을 동기 로드합니다).
@@ -93,12 +93,35 @@ npx imeplay check fixture:composing-only --profiles safari --exit-zero
 ![check 출력: safari 프로필에서 SUBMIT_ON_IME_ENTER FAIL](docs/images/03-check-safari.png)
 *`isComposing` 만 본 수정은 Safari 방식 순서에서 진짜 Enter 보다 먼저 전송합니다. `--exit-zero` 라 종료코드는 0 입니다.*
 
+한글이 아닌 글(일본어·중국어 등)은 조합 단계를 JSON 파일로 직접 적어 `--steps` 로 넘깁니다. 마지막 단계는 `compose` 여야 하고(확정은 imeplay 가 Enter 로 합니다), 형식이 틀리면 브라우저를 띄우기 전에 `imeplay: --steps: …` 한 줄과 종료코드 2 로 끝납니다. `commit`·`insert` 단계에도 `text` 가 필요합니다. 아래는 일본어 예시입니다. 레포를 clone 하지 않고 GitHub 으로 설치했다면 `tests/fixtures/` 가 없으므로 아래 내용을 직접 `steps-ja.json` 파일로 만드세요(clone 했다면 `tests/fixtures/steps-ja.json` 으로 들어 있습니다). 단계 파일(`steps-ja.json`):
+```json
+[
+  { "type": "compose", "text": "に" },
+  { "type": "compose", "text": "にほ" },
+  { "type": "compose", "text": "にほん" },
+  { "type": "compose", "text": "日本" }
+]
+```
+```bash
+npx imeplay check fixture:composing-only --steps steps-ja.json --profiles safari,firefox
+```
+```text
+profile   sent  values                                  verdict
+safari    1     ['日本'@ime-enter]                        FAIL SUBMIT_ON_IME_ENTER
+firefox   1     ['日本'@submit-enter]                     PASS
+  safari: SUBMIT_ON_IME_ENTER — sent during ime-enter (before the real Enter): '日本'
+
+result: 1 of 2 profile(s) FAIL
+```
+종료코드는 1 입니다. 한국어 예시와 같은 판정 방식이며, 로마자를 가나로 바꿔 주지는 않으므로 단계마다 `text` 를 직접 적습니다.
+
 | 옵션 | 하는 일 | 기본값 |
 |---|---|---|
 | `demo` | 연습용 화면 3종 x 프로필 4개 행렬 | - |
 | `check <url \| fixture:buggy\|composing-only\|fixed>` | 한 화면 점검 | - |
 | `--input SEL` | 입력창 선택자 | fixture `#prompt`, URL `textarea` |
 | `--text TEXT` | 입력할 글(끝이 한글 음절) | `안녕` |
+| `--steps FILE` | JSON ImeStep 배열(compose/commit/insert) 파일. `--text` 와 함께 쓸 수 없음 | 없음 |
 | `--profiles LIST` | `auto` 또는 `cdp,chromium,firefox,safari` | `auto` |
 | `--request GLOB` | "전송" 으로 볼 URL 글롭 | GET 이 아닌 모든 요청 |
 | `--passthrough` | 요청을 가로채지 않고 실제 서버로 보냄 | 꺼짐(가짜 200) |
@@ -197,6 +220,8 @@ if (e.isComposing || e.keyCode === 229) return;   // 조합 중 Enter 는 무시
 - `cdp` 는 실험적(experimental) CDP 명령을 씁니다. Chromium 버전에 따라 바뀔 수 있어 Playwright 를 1.65.0 으로 고정해 확인했습니다.
 - Firefox·WebKit 은 합성 프로필만 쓰며, 실제 Firefox·WebKit 브라우저에서의 실행은 이 환경에서 확인하지 못했고 CI 매트릭스(GitHub Actions)에서 확인하도록 구성되어 있습니다. 로컬 검증은 Chromium 뿐입니다.
 - 실제 OS 의 IME 를 띄우는 것은 아니고, 조합 이벤트 순서를 재현합니다.
+- `--steps` 파일이 UTF-8 BOM 으로 시작하면 JSON 형식 오류로 거부되는데, 문구가 원인(BOM)을 따로 알려 주지 않습니다. BOM 없이 저장하세요.
+- 한글이 아닌 글을 `--text` 로 넘기면 브라우저를 띄운 뒤에야 오류가 납니다(`--steps` 는 브라우저 전에 검사). 그런 글은 `--steps` 를 쓰세요.
 - 합성 프로필은 `textarea`·`input` 만 지원합니다(`contenteditable` 은 미지원).
 - 요청 본문에 대화 이력이 통째로 들어가면 값 판정이 어긋날 수 있습니다(횟수 판정은 유지).
 - 가짜 응답은 `{reply, imeplay:'stub'}` JSON 입니다. 다른 응답 형식(예: 스트리밍)을 기대하는 앱은 화면에 오류가 나도 판정에는 영향이 없습니다. WebSocket 전송은 기록만 하고 가로채지 않습니다.
@@ -214,14 +239,14 @@ if (e.isComposing || e.keyCode === 229) return;   // 조합 중 Enter 는 무시
 | `executable doesn't exist` | 브라우저 미설치 | `npx playwright install chromium` |
 | 종료코드 2 와 `timeout after Ns` | 입력창 선택자가 안 맞거나 화면이 느림 | `--input` 확인, `--timeout` 늘리기 |
 | `--chromium-arg --flag` 가 거부됨 | 값이 `--` 로 시작 | `--chromium-arg=--flag` 처럼 `=` 로 붙임 |
-| `text` 오류로 거부됨 | 마지막 글자가 한글 음절이 아님 | 끝을 한글로(예: `안녕`) |
+| `text` 오류로 거부됨 | 마지막 글자가 한글 음절이 아님 | 끝을 한글로(예: `안녕`). 일본어·중국어 등은 `--steps` 단계 파일을 씀 |
 | 모든 프로필이 NO_SUBMIT | `request` 글롭이 실제 전송 URL 과 안 맞음 | `--request` 를 지우거나 URL 에 맞춤 |
 
 ## 개발·기여
 ```bash
 npm install
 npx playwright install chromium
-npm test        # 빌드 + 타입 검사 + Playwright 테스트 (51개 통과, 1개는 CI 의 Firefox·WebKit 에서만 실행)
+npm test        # 빌드 + 타입 검사 + Playwright 테스트 (63개 통과, 1개는 CI 의 Firefox·WebKit 에서만 실행)
 ```
 샌드박스 환경에서는 앞에 `IMEPLAY_CHROMIUM_ARGS="--single-process --no-zygote"` 를 붙입니다. CI 는 Node 22·24 x Chromium·Firefox·WebKit 매트릭스입니다. 버그·제안은 이슈로 남겨 주세요. 변경 기록은 [CHANGELOG.md](CHANGELOG.md).
 
