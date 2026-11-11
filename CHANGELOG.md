@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.0] - 2026-11-11
+### Added
+- `imeplay check --steps FILE`: JSON array of IME steps (compose/commit/insert) so Japanese, Chinese and other non-Hangul compositions can be checked from the CLI. Cannot be combined with `--text`.
+
 ## [0.1.0] - 2026-11-10
 ### Added
 - `checkIme`, `expectSingleSubmit`, `typeWithIme`, `koreanSteps`, `judge` library API.

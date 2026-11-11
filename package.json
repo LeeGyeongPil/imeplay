@@ -1,6 +1,6 @@
 {
   "name": "imeplay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Reproduce IME composition (Korean, CJK) in Playwright tests and catch 'Enter sends twice / last character sent again' bugs in chat inputs.",
   "type": "module",
   "license": "MIT",
