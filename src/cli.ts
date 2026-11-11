@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // imeplay CLI
 //   imeplay demo                      연습용 목 채팅 화면 3종 × IME 프로필 4개 행렬
-//   imeplay check <url|fixture:NAME>  아무 화면의 입력창을 바로 점검
+//   imeplay check <url|fixture:NAME>  아무 화면의 입력창을 바로 점검 (--steps FILE 로 일본어·중국어 등 조합 단계를 직접 지정)
 // 종료코드: 0 = 모두 PASS(또는 --exit-zero), 1 = FAIL 있음, 2 = 사용법 오류·실행 오류·시간 초과
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -14,6 +14,7 @@ import { FIXTURE_MODES, fixtureUrl, startFixtureServer, type FixtureMode, type F
 import { formatSubmissions } from './judge.js';
 import { browserTypeFor, isBrowserName, resolveLaunchOptions } from './launch.js';
 import { parseProfiles, resolveProfiles, type BrowserName, type Profile } from './profiles.js';
+import { validateSteps, type ImeStep } from './steps.js';
 
 const HELP = `imeplay — reproduce IME composition (Korean) in a real browser and check Enter-to-send inputs
 
@@ -24,6 +25,7 @@ Usage
 Options (check)
   --input SEL          input/textarea selector (default: '#prompt' for fixtures, 'textarea' for URLs)
   --text TEXT          text to type with the IME, must end with a Hangul syllable (default: 안녕)
+  --steps FILE         JSON array of IME steps (compose/commit/insert) for Japanese, Chinese etc.; not with --text
   --profiles LIST      auto | comma list of cdp,chromium,firefox,safari (default: auto)
   --request GLOB       URL glob that counts as "send", e.g. '**/api/chat' (default: any non-GET request)
   --passthrough        let matching requests reach the real server (default: answer them with a fake 200)
@@ -51,6 +53,7 @@ interface Resources {
 type Values = {
   input?: string;
   text?: string;
+  steps?: string;
   profiles?: string;
   request?: string;
   browser?: string;
@@ -84,6 +87,7 @@ async function main(argv: string[]): Promise<number> {
       options: {
         input: { type: 'string' },
         text: { type: 'string' },
+        steps: { type: 'string' },
         profiles: { type: 'string' },
         request: { type: 'string' },
         browser: { type: 'string' },
@@ -130,6 +134,25 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
+  // --steps 는 check 전용이며 --text 와 함께 쓸 수 없다. 파일 검증도 서버·브라우저를 띄우기 전에 끝낸다.
+  let stepsInput: StepsInput | undefined;
+  if (values.steps !== undefined) {
+    if (command === 'demo') {
+      err('imeplay: --steps is only for check');
+      return 2;
+    }
+    if (values.text !== undefined) {
+      err('imeplay: --steps and --text cannot be used together');
+      return 2;
+    }
+    const loaded = await loadSteps(values.steps);
+    if (typeof loaded === 'string') {
+      err(`imeplay: ${loaded}`);
+      return 2;
+    }
+    stepsInput = loaded;
+  }
+
   // 전체 시간 상한: 시간이 다 되면 브라우저·서버를 닫고 종료코드 2 로 끝낸다.
   const resources: Resources = {};
   let timedOut = false;
@@ -159,7 +182,7 @@ async function main(argv: string[]): Promise<number> {
     }
     if (command === 'check') {
       if (target === undefined) throw new UsageError('check needs a target: a URL or fixture:buggy|composing-only|fixed');
-      return check(target, values, resources);
+      return check(target, values, resources, stepsInput);
     }
     throw new UsageError(`unknown command '${command}' (expected demo or check)`);
   })().catch((e: unknown) => {
@@ -182,6 +205,37 @@ async function main(argv: string[]): Promise<number> {
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
     await cleanup(resources);
+  }
+}
+
+interface StepsInput {
+  steps: ImeStep[];
+  finalText: string;
+}
+
+/** --steps 파일을 읽고 검증한다. 실패하면 한 줄 오류 문구(문자열)를 돌려준다. */
+async function loadSteps(file: string): Promise<StepsInput | string> {
+  let raw: string;
+  try {
+    raw = await readFile(file, 'utf8');
+  } catch (e) {
+    return `--steps: cannot read ${file} (${(e as NodeJS.ErrnoException).code ?? 'error'})`;
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    return `--steps: ${file} is not valid JSON (${(e as Error).message.split('\n')[0]})`;
+  }
+  try {
+    const { composing, finalText } = validateSteps(data as ImeStep[]);
+    if (composing === null) {
+      return `--steps: ${file}: the last step must be a compose step so Enter can be pressed during composition`;
+    }
+    return { steps: data as ImeStep[], finalText };
+  } catch (e) {
+    if (e instanceof ImeplayError) return `--steps: ${file}: ${e.message.split('\n')[0]}`;
+    throw e;
   }
 }
 
@@ -316,7 +370,7 @@ async function demo(values: Values, resources: Resources): Promise<number> {
 }
 
 // ---------------------------------------------------------------- check
-async function check(target: string, values: Values, resources: Resources): Promise<number> {
+async function check(target: string, values: Values, resources: Resources, stepsInput?: StepsInput): Promise<number> {
   let url: string;
   let isFixture = false;
   if (target.startsWith('fixture:')) {
@@ -334,7 +388,7 @@ async function check(target: string, values: Values, resources: Resources): Prom
   }
 
   const input = values.input ?? (isFixture ? '#prompt' : 'textarea');
-  const text = values.text ?? '안녕';
+  const text = stepsInput?.finalText ?? values.text ?? '안녕';
   const { browser, context, browserName } = await launch(values, resources);
   const profiles = resolveProfiles(browserName, parseProfiles(values.profiles));
   const page = await context.newPage();
@@ -346,7 +400,8 @@ async function check(target: string, values: Values, resources: Resources): Prom
     reports.push(
       ...(await checkIme(page, {
         input,
-        text,
+        // --steps 일 때는 steps 만 넘긴다(text 는 finalText 로 표시용)
+        ...(stepsInput ? { steps: stepsInput.steps } : { text }),
         profiles: [profile],
         request: values.request,
         passthrough: values.passthrough,
@@ -370,6 +425,7 @@ async function check(target: string, values: Values, resources: Resources): Prom
           browserVersion: browser.version(),
           input,
           text,
+          ...(values.steps !== undefined ? { steps: values.steps } : {}),
           requests: values.passthrough ? 'passthrough' : 'stubbed',
           ok: failed.length === 0,
           reports,
@@ -382,7 +438,7 @@ async function check(target: string, values: Values, resources: Resources): Prom
   } else {
     out(`imeplay check — ${url}${isFixture ? '  [연습용 목(mock) 채팅 화면]' : ''}`);
     out(
-      `input ${input} · text '${text}' · ${browserName} ${browser.version()} · requests ${values.passthrough ? 'passthrough (real server)' : 'stubbed (fake 200)'}`,
+      `input ${input} · text '${text}'${values.steps !== undefined && stepsInput ? ` (steps ${values.steps}, ${stepsInput.steps.length} steps)` : ''} · ${browserName} ${browser.version()} · requests ${values.passthrough ? 'passthrough (real server)' : 'stubbed (fake 200)'}`,
     );
     out();
     out(pad('profile', 10) + pad('sent', 6) + pad('values', 40) + 'verdict');
