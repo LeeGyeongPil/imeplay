@@ -1,5 +1,7 @@
 # imeplay
 
+**한국어** | [English](README.en.md)
+
 > **English summary** — imeplay reproduces Korean IME composition inside Playwright tests, so you can catch chat inputs that send twice or re-send the last character when the user presses Enter to confirm a syllable. Use it as a library in your own Playwright tests or as a CLI (`imeplay check <url>`; `--steps FILE` also checks non-Korean compositions such as Japanese or Chinese from a JSON step file). Quick start: `npm install && npx playwright install chromium && npm run demo`. Not published to npm yet; install from GitHub. Chromium is verified locally; Firefox and WebKit run in the CI matrix.
 
 한국어로 "안녕"을 치고 Enter 를 눌렀는데 채팅창에서 "안녕" 과 "녕" 이 두 번 전송되는 버그를, 자동화 테스트에서 재현하고 잡아 줍니다.
