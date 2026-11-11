@@ -2,9 +2,7 @@
 
 [한국어](README.md) | **English**
 
-imeplay reproduces Korean IME composition inside Playwright tests, so you can catch chat inputs that send twice or re-send the last character when the user presses Enter to confirm a syllable. Use it as a library in your own Playwright tests or as a CLI (`imeplay check <url>`; `--steps FILE` also checks non-Korean compositions such as Japanese or Chinese from a JSON step file). Quick start: `npm install && npx playwright install chromium && npm run demo`. Not published to npm yet; install from GitHub. Chromium is verified locally; Firefox and WebKit run in the CI matrix.
-
-It reproduces, in automated tests, and catches the bug where you type "안녕" in Korean and press Enter, and the chat box sends both "안녕" and "녕" (the last syllable) as two messages.
+imeplay reproduces Korean IME composition inside Playwright tests, so you can catch chat inputs that send twice or re-send the last character when the user presses Enter to confirm a syllable (for example typing "안녕" and sending both "안녕" and "녕"). Use it as a library in your own Playwright tests or as a CLI (`imeplay check <url>`; `--steps FILE` also checks non-Korean compositions such as Japanese or Chinese from a JSON step file). Quick start: `npm install && npx playwright install chromium && npm run demo`. Not published to npm yet; install from GitHub. Chromium is verified locally; Firefox and WebKit run in the CI matrix.
 
 ![imeplay demo run result: a verdict table of 3 screens x 4 IME profiles](docs/images/01-demo-matrix.png)
 *`npm run demo` — the result of checking 3 practice (mock) chat screens with 4 IME profiles. buggy is all FAIL, and the properly fixed one, fixed, is all PASS.*
