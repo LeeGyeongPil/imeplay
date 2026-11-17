@@ -25,13 +25,13 @@ It has not been published to npm yet. Install it from GitHub. Prerequisite: Node
 
 ```bash
 # Install Node (macOS example: brew install node; on Linux use nvm etc.)
-npm install -D github:LeeGyeongPil/imeplay @playwright/test@1.65.0
+npm install -D github:LeeGyeongPil/imeplay @playwright/test@1.65.0 playwright@1.65.0
 npx playwright install chromium
 ```
 - At install time, `prepare` builds the TypeScript. npm 11 may show an `install-scripts` warning, which is normal.
-- To use a clone: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. To put it into another project, take the `imeplay-0.2.0.tgz` made with `npm pack` and run `npm install -D ./imeplay-0.2.0.tgz @playwright/test@1.65.0`.
+- To use a clone: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. To put it into another project, take the `imeplay-0.2.1.tgz` made with `npm pack` and run `npm install -D ./imeplay-0.2.1.tgz @playwright/test@1.65.0 playwright@1.65.0`.
 - If a browser must launch on minimal Linux (a container), use `npx playwright install --with-deps chromium`.
-- `playwright` is a peer dependency (`>=1.65.0 <2`). The `@playwright/test` in the install line above pulls in `playwright` too, so you don't need to install it separately. If you use only the CLI and `checkIme` without a test runner, you can install just `playwright@1.65.0` instead of `@playwright/test`.
+- `playwright` is a peer dependency (`>=1.65.0 <2`). Pin it to the same version as `@playwright/test` (`playwright@1.65.0`) so the browser that `npx playwright install` downloads matches the one imeplay looks for (without the pin, npm may install a newer playwright separately). If you use only the CLI and `checkIme` without a test runner, you can install just `playwright@1.65.0` without `@playwright/test`.
 - Both ESM and CommonJS projects load it with `import { checkIme } from 'imeplay'` or `require('imeplay')` (Node 22.12+; `require` loads ESM synchronously).
 
 ## Quick start
@@ -240,7 +240,7 @@ Looking only at `isComposing` breaks in the Safari-style order (keydown after co
 |---|---|---|
 | `browserType.launch: Target page, context or browser has been closed` (the imeplay CLI prints `could not start chromium: …` along with a hint) | The browser dies right after starting because of sandbox or container restrictions | `IMEPLAY_CHROMIUM_ARGS="--single-process --no-zygote"` (see the note above). For your own tests, `launchOptions.args` |
 | `No tests found` | `@playwright/test` is not installed, or the spec file name is not `*.spec.ts` | Check `@playwright/test` in the install line |
-| `executable doesn't exist` | The browser is not installed | `npx playwright install chromium` |
+| `Executable doesn't exist at …` (the CLI prints it after `could not start chromium:` with a hint) | The browser is not installed, or playwright versions differ | `npx playwright install chromium`. If it persists, run `npm ls playwright` or `npx playwright --version`; if it lists two versions, align them (`npm install -D @playwright/test@1.65.0 playwright@1.65.0`, both packages together) |
 | Exit code 2 and `timeout after Ns` | The input box selector doesn't match, or the screen is slow | Check `--input`, increase `--timeout` |
 | `--chromium-arg --flag` is rejected | The value starts with `--` | Attach it with `=`, like `--chromium-arg=--flag` |
 | Rejected with a `text` error | The last character is not a Hangul syllable | End with Korean (for example, `안녕`). For Japanese, Chinese, and so on, use a `--steps` step file |

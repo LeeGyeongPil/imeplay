@@ -27,13 +27,13 @@ npm 에는 아직 게시하지 않았습니다. GitHub 에서 설치합니다. �
 
 ```bash
 # Node 설치 (macOS 예: brew install node, 리눅스는 nvm 등 사용)
-npm install -D github:LeeGyeongPil/imeplay @playwright/test@1.65.0
+npm install -D github:LeeGyeongPil/imeplay @playwright/test@1.65.0 playwright@1.65.0
 npx playwright install chromium
 ```
 - 설치 때 `prepare` 가 TypeScript 를 빌드합니다. npm 11 은 `install-scripts` 경고를 띄울 수 있고, 정상입니다.
-- clone 해서 쓰려면: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. 다른 프로젝트에 넣을 때는 `npm pack` 으로 만든 `imeplay-0.2.0.tgz` 를 `npm install -D ./imeplay-0.2.0.tgz @playwright/test@1.65.0` 합니다.
+- clone 해서 쓰려면: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. 다른 프로젝트에 넣을 때는 `npm pack` 으로 만든 `imeplay-0.2.1.tgz` 를 `npm install -D ./imeplay-0.2.1.tgz @playwright/test@1.65.0 playwright@1.65.0` 합니다.
 - 최소 리눅스(컨테이너)에서 브라우저가 떠야 한다면 `npx playwright install --with-deps chromium` 을 씁니다.
-- `playwright` 는 peer 의존성(`>=1.65.0 <2`)입니다. 위 설치 줄의 `@playwright/test` 가 `playwright` 를 함께 끌어오므로 따로 설치하지 않아도 됩니다. 테스트 러너 없이 CLI 와 `checkIme` 만 쓴다면 `@playwright/test` 대신 `playwright@1.65.0` 만 설치해도 됩니다.
+- `playwright` 는 peer 의존성(`>=1.65.0 <2`)입니다. `@playwright/test` 와 같은 버전(`playwright@1.65.0`)으로 함께 고정해야 `npx playwright install` 이 받는 브라우저와 imeplay 가 찾는 브라우저 버전이 어긋나지 않습니다(고정하지 않으면 npm 이 최신 playwright 를 따로 설치할 수 있습니다). 테스트 러너 없이 CLI 와 `checkIme` 만 쓴다면 `@playwright/test` 없이 `playwright@1.65.0` 만 설치해도 됩니다.
 - ESM·CommonJS 프로젝트 모두 `import { checkIme } from 'imeplay'` 또는 `require('imeplay')` 로 불러옵니다(Node 22.12+, `require` 는 ESM 을 동기 로드합니다).
 
 ## 빠르게 시작하기
@@ -238,7 +238,7 @@ if (e.isComposing || e.keyCode === 229) return;   // 조합 중 Enter 는 무시
 |---|---|---|
 | `browserType.launch: Target page, context or browser has been closed` (imeplay CLI 는 `could not start chromium: …` 와 힌트를 함께 출력) | 샌드박스·컨테이너 제한으로 브라우저가 시작 직후 죽음 | `IMEPLAY_CHROMIUM_ARGS="--single-process --no-zygote"` (위 주의 참고). 내 테스트는 `launchOptions.args` |
 | `No tests found` | `@playwright/test` 를 설치하지 않았거나 spec 파일 이름이 `*.spec.ts` 가 아님 | 설치 줄의 `@playwright/test` 를 확인 |
-| `executable doesn't exist` | 브라우저 미설치 | `npx playwright install chromium` |
+| `Executable doesn't exist at …` (CLI 는 `could not start chromium:` 뒤에 이 문구와 힌트를 출력) | 브라우저 미설치 또는 playwright 버전 불일치 | `npx playwright install chromium`. 그래도 같으면 `npm ls playwright` 또는 `npx playwright --version` 으로 버전이 둘인지 보고 같은 버전으로 맞춥니다(`npm install -D @playwright/test@1.65.0 playwright@1.65.0`, 두 패키지를 함께) |
 | 종료코드 2 와 `timeout after Ns` | 입력창 선택자가 안 맞거나 화면이 느림 | `--input` 확인, `--timeout` 늘리기 |
 | `--chromium-arg --flag` 가 거부됨 | 값이 `--` 로 시작 | `--chromium-arg=--flag` 처럼 `=` 로 붙임 |
 | `text` 오류로 거부됨 | 마지막 글자가 한글 음절이 아님 | 끝을 한글로(예: `안녕`). 일본어·중국어 등은 `--steps` 단계 파일을 씀 |
