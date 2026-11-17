@@ -1,6 +1,7 @@
 // 브라우저 실행 옵션. 환경변수 IMEPLAY_CHROMIUM_ARGS 로 Chromium 인자를 넣을 수 있다.
 // 예) 일부 샌드박스(macOS Seatbelt 등)에서는 '--single-process --no-zygote' 가 있어야 Chromium 이 뜬다.
 // 일반 터미널·CI 에서는 비워 두면 된다.
+import { createRequire } from 'node:module';
 import type { BrowserType, LaunchOptions } from 'playwright';
 import { ImeplayError } from './errors.js';
 import type { BrowserName } from './profiles.js';
@@ -21,6 +22,16 @@ export async function browserTypeFor(name: string): Promise<BrowserType> {
   if (name === 'firefox') return pw.firefox;
   if (name === 'webkit') return pw.webkit;
   throw new ImeplayError(`unknown browser '${name}' (expected chromium, firefox or webkit)`);
+}
+
+/** imeplay 가 실제로 불러오는 playwright 의 버전. 조회에 실패하면 undefined. */
+export function loadedPlaywrightVersion(): string | undefined {
+  try {
+    const pkg = createRequire(import.meta.url)('playwright/package.json') as { version?: unknown };
+    return typeof pkg.version === 'string' ? pkg.version : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function isBrowserName(name: string): name is BrowserName {

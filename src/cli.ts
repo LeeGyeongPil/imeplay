@@ -12,7 +12,7 @@ import { checkIme, type ImeReport } from './check.js';
 import { ImeplayError } from './errors.js';
 import { FIXTURE_MODES, fixtureUrl, startFixtureServer, type FixtureMode, type FixtureServer } from './fixture-server.js';
 import { formatSubmissions } from './judge.js';
-import { browserTypeFor, isBrowserName, resolveLaunchOptions } from './launch.js';
+import { browserTypeFor, isBrowserName, loadedPlaywrightVersion, resolveLaunchOptions } from './launch.js';
 import { parseProfiles, resolveProfiles, type BrowserName, type Profile } from './profiles.js';
 import { validateSteps, type ImeStep } from './steps.js';
 
@@ -268,7 +268,13 @@ function launchFailureMessage(e: unknown, browserName: string): string {
         '(or add --chromium-arg). If the browser binary is missing, run: npx playwright install chromium. ' +
         'Set IMEPLAY_DEBUG=1 for the full browser log.'
       : `If the browser binary is missing, run: npx playwright install ${browserName}. Set IMEPLAY_DEBUG=1 for the full browser log.`;
-  return `could not start ${browserName}: ${first}\n${hint}`;
+  // 설치된 playwright 가 둘로 갈리면 `npx playwright` 와 imeplay 의 브라우저 리비전이 어긋난다.
+  const version = loadedPlaywrightVersion();
+  const versionHint = version
+    ? ` imeplay is using playwright ${version}; if \`npx playwright --version\` prints a different version, ` +
+      `run: npm install -D @playwright/test@${version} playwright@${version} (install both at the same version), then install the browser again.`
+    : '';
+  return `could not start ${browserName}: ${first}\n${hint}${versionHint}`;
 }
 
 async function launch(

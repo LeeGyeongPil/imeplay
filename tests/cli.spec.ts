@@ -240,4 +240,7 @@ test('브라우저를 시작하지 못하면 고치는 방법(IMEPLAY_CHROMIUM_A
   expect(r.stderr).toContain('could not start chromium');
   expect(r.stderr).toContain('IMEPLAY_CHROMIUM_ARGS="--single-process --no-zygote"');
   expect(r.stderr).toContain('npx playwright install chromium');
+  // imeplay 가 쓰는 playwright 버전이 보인다.
+  expect(r.stderr).toMatch(/imeplay is using playwright \d+\.\d+\.\d+/);
+  expect(r.stderr).toMatch(/npm install -D @playwright\/test@\d+\.\d+\.\d+ playwright@\d+\.\d+\.\d+/);
 });
