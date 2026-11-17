@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1] - 2026-11-18
+### Fixed
+- Install docs pin `playwright` to the same version as `@playwright/test`, and the browser-launch error now shows the playwright version imeplay loaded, so `npx playwright install` fetches the browser revision the CLI needs.
+
 ## [0.2.0] - 2026-11-11
 ### Added
 - `imeplay check --steps FILE`: JSON array of IME steps (compose/commit/insert) so Japanese, Chinese and other non-Hangul compositions can be checked from the CLI. Cannot be combined with `--text`.
