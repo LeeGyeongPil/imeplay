@@ -31,7 +31,7 @@ npm install -D github:LeeGyeongPil/imeplay @playwright/test@1.65.0 playwright@1.
 npx playwright install chromium
 ```
 - 설치 때 `prepare` 가 TypeScript 를 빌드합니다. npm 11 은 `install-scripts` 경고를 띄울 수 있고, 정상입니다.
-- clone 해서 쓰려면: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. 다른 프로젝트에 넣을 때는 `npm pack` 으로 만든 `imeplay-0.2.1.tgz` 를 `npm install -D ./imeplay-0.2.1.tgz @playwright/test@1.65.0 playwright@1.65.0` 합니다.
+- clone 해서 쓰려면: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. 다른 프로젝트에 넣을 때는 `npm pack` 으로 만든 `imeplay-0.2.2.tgz` 를 `npm install -D ./imeplay-0.2.2.tgz @playwright/test@1.65.0 playwright@1.65.0` 합니다.
 - 최소 리눅스(컨테이너)에서 브라우저가 떠야 한다면 `npx playwright install --with-deps chromium` 을 씁니다.
 - `playwright` 는 peer 의존성(`>=1.65.0 <2`)입니다. `@playwright/test` 와 같은 버전(`playwright@1.65.0`)으로 함께 고정해야 `npx playwright install` 이 받는 브라우저와 imeplay 가 찾는 브라우저 버전이 어긋나지 않습니다(고정하지 않으면 npm 이 최신 playwright 를 따로 설치할 수 있습니다). 테스트 러너 없이 CLI 와 `checkIme` 만 쓴다면 `@playwright/test` 없이 `playwright@1.65.0` 만 설치해도 됩니다.
 - ESM·CommonJS 프로젝트 모두 `import { checkIme } from 'imeplay'` 또는 `require('imeplay')` 로 불러옵니다(Node 22.12+, `require` 는 ESM 을 동기 로드합니다).
@@ -224,7 +224,7 @@ if (e.isComposing || e.keyCode === 229) return;   // 조합 중 Enter 는 무시
 - 실제 OS 의 IME 를 띄우는 것은 아니고, 조합 이벤트 순서를 재현합니다.
 - `--steps` 파일이 UTF-8 BOM 으로 시작하면 JSON 형식 오류로 거부되는데, 문구가 원인(BOM)을 따로 알려 주지 않습니다. BOM 없이 저장하세요.
 - 한글이 아닌 글을 `--text` 로 넘기면 브라우저를 띄운 뒤에야 오류가 납니다(`--steps` 는 브라우저 전에 검사). 그런 글은 `--steps` 를 쓰세요.
-- 합성 프로필은 `textarea`·`input` 만 지원합니다(`contenteditable` 은 미지원).
+- 합성 프로필은 `textarea`·`input` 만 지원합니다(`contenteditable` 은 미지원). 기본(`auto`)에서 입력창이 `contenteditable` 이면 합성 프로필 행은 `SKIP` 으로 표시되고 `cdp` 결과로만 판정합니다(JSON 은 최상위 `skipped: [{ profile, reason }]`). 합성 프로필을 직접 고르면 오류이며 Chromium 에서 `--profiles cdp` 를 쓰세요.
 - 요청 본문에 대화 이력이 통째로 들어가면 값 판정이 어긋날 수 있습니다(횟수 판정은 유지).
 - 가짜 응답은 `{reply, imeplay:'stub'}` JSON 입니다. 다른 응답 형식(예: 스트리밍)을 기대하는 앱은 화면에 오류가 나도 판정에는 영향이 없습니다. WebSocket 전송은 기록만 하고 가로채지 않습니다.
 - 실제 URL 을 `--passthrough` 로 점검하면 실제 서버로 메시지가 가므로 과금·지연이 생길 수 있고, 네트워크 속도에 따라 느릴 수 있습니다. 그래서 `--timeout`(기본 60초)이 있습니다.
@@ -248,7 +248,7 @@ if (e.isComposing || e.keyCode === 229) return;   // 조합 중 Enter 는 무시
 ```bash
 npm install
 npx playwright install chromium
-npm test        # 빌드 + 타입 검사 + Playwright 테스트 (63개 통과, 1개는 CI 의 Firefox·WebKit 에서만 실행)
+npm test        # 빌드 + 타입 검사 + Playwright 테스트 (67개 통과, 1개는 CI 의 Firefox·WebKit 에서만 실행)
 ```
 샌드박스 환경에서는 앞에 `IMEPLAY_CHROMIUM_ARGS="--single-process --no-zygote"` 를 붙입니다. CI 는 Node 22·24 x Chromium·Firefox·WebKit 매트릭스입니다. 버그·제안은 이슈로 남겨 주세요. 변경 기록은 [CHANGELOG.md](CHANGELOG.md).
 

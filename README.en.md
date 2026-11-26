@@ -29,7 +29,7 @@ npm install -D github:LeeGyeongPil/imeplay @playwright/test@1.65.0 playwright@1.
 npx playwright install chromium
 ```
 - At install time, `prepare` builds the TypeScript. npm 11 may show an `install-scripts` warning, which is normal.
-- To use a clone: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. To put it into another project, take the `imeplay-0.2.1.tgz` made with `npm pack` and run `npm install -D ./imeplay-0.2.1.tgz @playwright/test@1.65.0 playwright@1.65.0`.
+- To use a clone: `git clone https://github.com/LeeGyeongPil/imeplay && cd imeplay && npm install && npx playwright install chromium`. To put it into another project, take the `imeplay-0.2.2.tgz` made with `npm pack` and run `npm install -D ./imeplay-0.2.2.tgz @playwright/test@1.65.0 playwright@1.65.0`.
 - If a browser must launch on minimal Linux (a container), use `npx playwright install --with-deps chromium`.
 - `playwright` is a peer dependency (`>=1.65.0 <2`). Pin it to the same version as `@playwright/test` (`playwright@1.65.0`) so the browser that `npx playwright install` downloads matches the one imeplay looks for (without the pin, npm may install a newer playwright separately). If you use only the CLI and `checkIme` without a test runner, you can install just `playwright@1.65.0` without `@playwright/test`.
 - Both ESM and CommonJS projects load it with `import { checkIme } from 'imeplay'` or `require('imeplay')` (Node 22.12+; `require` loads ESM synchronously).
@@ -226,7 +226,7 @@ Looking only at `isComposing` breaks in the Safari-style order (keydown after co
 - It does not bring up the real OS IME; it reproduces the order of composition events.
 - If the `--steps` file starts with a UTF-8 BOM, it is rejected as a JSON format error, and the message does not tell you the cause (the BOM) separately. Save it without a BOM.
 - If you pass non-Korean text with `--text`, the error comes only after the browser has launched (`--steps` is checked before the browser). Use `--steps` for such text.
-- The synthetic profiles support only `textarea` and `input` (`contenteditable` is not supported).
+- The synthetic profiles support only `textarea` and `input` (`contenteditable` is not supported). With the default `auto`, a `contenteditable` input shows the synthetic rows as `SKIP` and is judged by `cdp` alone (JSON gets a top-level `skipped: [{ profile, reason }]`). Picking a synthetic profile explicitly is an error; use `--profiles cdp` in Chromium.
 - If the request body contains the whole conversation history, the value verdict can go off (the count verdict is kept).
 - The fake response is a `{reply, imeplay:'stub'}` JSON. An app that expects a different response format (for example, streaming) may show an error on screen, but the verdict is unaffected. WebSocket sends are only recorded, not intercepted.
 - If you check a real URL with `--passthrough`, messages go to the real server, so billing and delay can occur, and it may be slow depending on network speed. That is why `--timeout` (default 60 seconds) exists.
@@ -250,7 +250,7 @@ Looking only at `isComposing` breaks in the Safari-style order (keydown after co
 ```bash
 npm install
 npx playwright install chromium
-npm test        # Build + type check + Playwright tests (63 pass; 1 runs only on Firefox and WebKit in CI)
+npm test        # Build + type check + Playwright tests (67 pass; 1 runs only on Firefox and WebKit in CI)
 ```
 In a sandbox environment, prefix it with `IMEPLAY_CHROMIUM_ARGS="--single-process --no-zygote"`. CI is a matrix of Node 22 and 24 x Chromium, Firefox, and WebKit. Please leave bugs and suggestions as issues. The change log is [CHANGELOG.md](CHANGELOG.md).
 
