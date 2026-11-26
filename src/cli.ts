@@ -299,6 +299,23 @@ async function launch(
   return { browser, context, browserName };
 }
 
+const SYNTHETIC_ONLY_MARKER = 'synthetic driver supports <textarea> and <input> only';
+const SKIP_REASON = 'contenteditable: synthetic profiles support textarea/input only';
+const CDP_HINT = 'use --profiles cdp (Chromium) for contenteditable inputs';
+const SYNTHETIC_UNSUPPORTED = 'the input is not a <textarea> or <input>, so no synthetic profile can run in this browser;';
+
+/** 입력창이 합성 프로필이 지원하는 요소(textarea/input)인지. 확인하지 못하면 true(기존 동작 유지). */
+async function supportsSynthetic(page: Page, selector: string): Promise<boolean> {
+  try {
+    return await page
+      .locator(selector)
+      .first()
+      .evaluate((el) => el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement, undefined, { timeout: 3000 });
+  } catch {
+    return true;
+  }
+}
+
 async function screenshot(page: Page, dir: string, name: string): Promise<string> {
   // 목 응답 말풍선이 다 그려질 때까지 잠깐 기다린다(최대 2초, 못 기다려도 그대로 찍는다).
   await page
@@ -396,24 +413,42 @@ async function check(target: string, values: Values, resources: Resources, steps
   const input = values.input ?? (isFixture ? '#prompt' : 'textarea');
   const text = stepsInput?.finalText ?? values.text ?? '안녕';
   const { browser, context, browserName } = await launch(values, resources);
-  const profiles = resolveProfiles(browserName, parseProfiles(values.profiles));
+  const requested = parseProfiles(values.profiles);
+  let profiles = resolveProfiles(browserName, requested);
   const page = await context.newPage();
   await page.goto(url);
+
+  // auto 일 때만: 입력창이 textarea/input 이 아니면(contenteditable 등) 합성 프로필은 돌릴 수 없으니 건너뛴다.
+  const skipped: Array<{ profile: Profile; reason: string }> = [];
+  if (requested === 'auto' && !(await supportsSynthetic(page, input))) {
+    const runnable = profiles.filter((p) => p === 'cdp');
+    if (runnable.length === 0) throw new ImeplayError(`${SYNTHETIC_UNSUPPORTED} ${CDP_HINT}`);
+    for (const profile of profiles) if (profile !== 'cdp') skipped.push({ profile, reason: SKIP_REASON });
+    profiles = runnable;
+  }
 
   const reports: ImeReport[] = [];
   const shots: string[] = [];
   for (const profile of profiles) {
-    reports.push(
-      ...(await checkIme(page, {
-        input,
-        // --steps 일 때는 steps 만 넘긴다(text 는 finalText 로 표시용)
-        ...(stepsInput ? { steps: stepsInput.steps } : { text }),
-        profiles: [profile],
-        request: values.request,
-        passthrough: values.passthrough,
-        recordEvents: values.json,
-      })),
-    );
+    try {
+      reports.push(
+        ...(await checkIme(page, {
+          input,
+          // --steps 일 때는 steps 만 넘긴다(text 는 finalText 로 표시용)
+          ...(stepsInput ? { steps: stepsInput.steps } : { text }),
+          profiles: [profile],
+          request: values.request,
+          passthrough: values.passthrough,
+          recordEvents: values.json,
+        })),
+      );
+    } catch (e) {
+      // 합성 프로필을 직접 골랐는데 입력창이 contenteditable 이면 우회 방법을 한 줄로 알려 준다.
+      if (e instanceof Error && e.message.includes(SYNTHETIC_ONLY_MARKER)) {
+        throw new ImeplayError(`${e.message.split('\n')[0]} — ${CDP_HINT}`);
+      }
+      throw e;
+    }
     if (values.screenshots) shots.push(await screenshot(page, values.screenshots, profile));
   }
   await page.close();
@@ -435,6 +470,7 @@ async function check(target: string, values: Values, resources: Resources, steps
           requests: values.passthrough ? 'passthrough' : 'stubbed',
           ok: failed.length === 0,
           reports,
+          skipped,
           screenshots: shots,
         },
         null,
@@ -452,6 +488,7 @@ async function check(target: string, values: Values, resources: Resources, steps
       const verdict = pass(r) ? 'PASS' : `FAIL ${r.findings.map((f) => f.code).join('+')}`;
       out(pad(r.profile, 10) + pad(String(r.submissions.length), 6) + pad(formatSubmissions(r.submissions), 40) + verdict);
     }
+    for (const s of skipped) out(pad(s.profile, 10) + pad('-', 6) + pad('-', 40) + `SKIP (${s.reason})`);
     for (const r of failed) for (const f of r.findings) out(`  ${r.profile}: ${f.code} — ${f.message}`);
     if (shots.length > 0) out(`screenshots: ${shots.join(', ')}`);
     out();
