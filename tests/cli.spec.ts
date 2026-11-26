@@ -2,11 +2,11 @@
 // (npm test 가 먼저 빌드하므로 dist/ 가 있다)
 import { spawn, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -243,4 +243,59 @@ test('브라우저를 시작하지 못하면 고치는 방법(IMEPLAY_CHROMIUM_A
   // imeplay 가 쓰는 playwright 버전이 보인다.
   expect(r.stderr).toMatch(/imeplay is using playwright \d+\.\d+\.\d+/);
   expect(r.stderr).toMatch(/npm install -D @playwright\/test@\d+\.\d+\.\d+ playwright@\d+\.\d+\.\d+/);
+});
+
+// contenteditable 입력창: auto 는 cdp 만 판정하고 합성 프로필은 SKIP, 합성 프로필을 직접 고르면 힌트가 붙은 오류
+test.describe('contenteditable 입력창', () => {
+  const html = `<!doctype html><meta charset="utf-8"><div id="ed" contenteditable="true"></div>
+<script>
+  document.getElementById('ed').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    fetch('/api/chat', { method: 'POST', body: JSON.stringify({ message: e.target.textContent }) });
+  });
+</script>`;
+  let dir = '';
+  let url = '';
+  test.beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'imeplay-ce-'));
+    const file = join(dir, 'ce.html');
+    writeFileSync(file, html);
+    url = pathToFileURL(file).href;
+  });
+  test.afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  test('auto: cdp 만 판정하고 합성 3종은 SKIP, 종료코드 0', async () => {
+    test.setTimeout(120_000);
+    const run = await runCli(['check', url, '--input', '#ed', '--request', '**/api/chat']);
+    expect(run.code, run.stderr).toBe(0);
+    expect(run.stdout).toContain('result: all 1 profile(s) PASS');
+    for (const p of ['chromium', 'firefox', 'safari']) {
+      expect(run.stdout).toContain(`${p}`);
+    }
+    expect(run.stdout.match(/SKIP \(contenteditable: synthetic profiles support textarea\/input only\)/g)).toHaveLength(3);
+  });
+
+  test('auto --json: reports 는 cdp 하나, skipped 에 합성 3종과 사유', async () => {
+    test.setTimeout(120_000);
+    const run = await runCli(['check', url, '--input', '#ed', '--request', '**/api/chat', '--json']);
+    expect(run.code, run.stderr).toBe(0);
+    const json = JSON.parse(run.stdout);
+    expect(json.reports.map((r: { profile: string }) => r.profile)).toEqual(['cdp']);
+    expect(json.skipped.map((s: { profile: string }) => s.profile)).toEqual(['chromium', 'firefox', 'safari']);
+    expect(json.skipped[0].reason).toContain('contenteditable');
+  });
+
+  test('textarea 대상은 skipped 가 빈 배열', async () => {
+    const run = await runCli(['check', 'fixture:fixed', '--profiles', 'firefox', '--json']);
+    expect(run.code, run.stderr).toBe(0);
+    expect(JSON.parse(run.stdout).skipped).toEqual([]);
+  });
+
+  test('합성 프로필을 직접 고르면 종료코드 2 와 --profiles cdp 힌트', async () => {
+    test.setTimeout(120_000);
+    const run = await runCli(['check', url, '--input', '#ed', '--profiles', 'safari']);
+    expect(run.code).toBe(2);
+    expect(run.stderr).toContain('use --profiles cdp (Chromium) for contenteditable inputs');
+  });
 });
